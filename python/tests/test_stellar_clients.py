@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from stellar_ai.stellar import HorizonClient, SorobanRpcClient, StellarClientError
@@ -47,3 +48,68 @@ def test_client_errors_propagate():
 
     with pytest.raises(StellarClientError):
         SorobanRpcClient("https://r", rpc_call=boom_rpc).get_health()
+
+
+# -- default httpx transport paths -----------------------------------------
+def _response(status_code=200, *, json=None, text=None) -> httpx.Response:
+    return httpx.Response(
+        status_code,
+        json=json,
+        text=text,
+        request=httpx.Request("GET", "https://example.test"),
+    )
+
+
+def test_horizon_uses_httpx_by_default(monkeypatch):
+    def fake_get(url, params=None, timeout=None):
+        assert url == "https://horizon.example/ledgers"
+        return _response(200, json={"_embedded": {"records": [{"sequence": 1}]}})
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    assert HorizonClient("https://horizon.example").latest_ledger() == {"sequence": 1}
+
+
+def test_horizon_http_error_becomes_client_error(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _response(500))
+    with pytest.raises(StellarClientError):
+        HorizonClient("https://horizon.example").latest_ledger()
+
+
+def test_horizon_account(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _response(200, json={"id": "G"}))
+    assert HorizonClient("https://h").account("G") == {"id": "G"}
+
+
+def test_soroban_uses_httpx_by_default(monkeypatch):
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *a, **k: _response(
+            200, json={"jsonrpc": "2.0", "id": 1, "result": {"status": "healthy"}}
+        ),
+    )
+    assert SorobanRpcClient("https://r").get_health() == {"status": "healthy"}
+
+
+def test_soroban_rpc_error_becomes_client_error(monkeypatch):
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *a, **k: _response(
+            200, json={"jsonrpc": "2.0", "id": 1, "error": {"message": "boom"}}
+        ),
+    )
+    with pytest.raises(StellarClientError):
+        SorobanRpcClient("https://r").get_health()
+
+
+def test_soroban_invalid_json_becomes_client_error(monkeypatch):
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _response(200, text="not json"))
+    with pytest.raises(StellarClientError):
+        SorobanRpcClient("https://r").latest_ledger()
+
+
+def test_soroban_http_error_becomes_client_error(monkeypatch):
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _response(503))
+    with pytest.raises(StellarClientError):
+        SorobanRpcClient("https://r").get_health()

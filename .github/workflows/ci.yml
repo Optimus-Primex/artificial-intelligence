@@ -40,7 +40,7 @@ jobs:
         run: ruff format --check .
 
       - name: Tests
-        run: pytest --cov=stellar_ai --cov-report=term-missing
+        run: pytest --cov=stellar_ai --cov-report=term-missing --cov-fail-under=90
 
   typescript:
     name: TypeScript
@@ -66,3 +66,39 @@ jobs:
 
       - name: Tests
         run: npm run test
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        working-directory: python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" pip-audit bandit
+
+      - name: Dependency audit (pip-audit)
+        working-directory: python
+        run: pip-audit
+
+      - name: Static analysis (bandit)
+        working-directory: python
+        run: bandit -r src -q
+
+      - name: Secret scan
+        run: python scripts/scan_secrets.py
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t stellar-ai:ci ./python

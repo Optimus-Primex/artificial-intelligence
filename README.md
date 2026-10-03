@@ -1,5 +1,10 @@
 # Artificial Intelligence
 
+[![CI](https://github.com/Optimus-Primex/artificial-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/Optimus-Primex/artificial-intelligence/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Coverage: 90%+](https://img.shields.io/badge/coverage-90%25%2B-brightgreen)](#)
+
 AI toolkit for the **Stellar / Soroban** ecosystem.
 
 This repository is a monorepo with two parts:
@@ -75,12 +80,29 @@ const status = await client.networkStatus("testnet");
 
 ## Endpoints (v1)
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness probe. |
-| `GET` | `/api/v1/network/status?network=testnet` | Latest ledger / node health. |
-| `POST` | `/api/v1/analyze` | Analyse supplied network data. |
-| `POST` | `/api/v1/chat` | Natural-language query through an agent. |
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/health` | no | Liveness probe. |
+| `GET` | `/ready` | no | Readiness probe (checks Horizon + RPC). |
+| `GET` | `/api/v1/network/status?network=testnet` | yes | Latest ledger / node health. |
+| `POST` | `/api/v1/analyze` | yes | Analyse supplied network data. |
+| `POST` | `/api/v1/chat` | yes | Natural-language query through an agent. |
+
+Every response carries an `X-Request-ID`; errors use a consistent envelope
+(see [`docs/errors.md`](docs/errors.md)).
+
+## Configuration
+
+Settings are environment variables with the `STELLAR_AI_` prefix (see
+[`.env.example`](.env.example)): network, LLM provider, `STELLAR_AI_API_KEYS`
+(bearer keys; empty disables auth), `STELLAR_AI_CORS_ORIGINS`, and
+`STELLAR_AI_LOG_FORMAT` (`text` or `json`).
+
+## Docker
+
+```bash
+docker compose up --build     # http://localhost:8000
+```
 
 ## License
 

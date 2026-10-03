@@ -88,3 +88,27 @@ def error_client(settings, provider) -> TestClient:
         provider=provider,
     )
     return TestClient(app)
+
+
+@pytest.fixture()
+def secured_client(provider) -> TestClient:
+    settings = Settings(default_network="testnet", api_keys="secret-key")
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def cors_client(provider) -> TestClient:
+    settings = Settings(default_network="testnet", cors_origins="https://app.example.com")
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(),
+        provider=provider,
+    )
+    return TestClient(app)

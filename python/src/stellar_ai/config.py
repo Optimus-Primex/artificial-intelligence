@@ -42,9 +42,24 @@ class Settings(BaseSettings):
     llm_provider: str = "static"
     request_timeout: float = 10.0
 
+    # Comma-separated bearer tokens. Empty disables authentication (dev mode).
+    api_keys: str = ""
+    # Comma-separated allowed CORS origins. Empty disables CORS.
+    cors_origins: str = ""
+    # "text" (human friendly) or "json" (structured).
+    log_format: str = "text"
+
     # Optional endpoint overrides (otherwise the per-network defaults are used).
     horizon_url: str | None = None
     soroban_rpc_url: str | None = None
+
+    @property
+    def api_key_set(self) -> set[str]:
+        return {key.strip() for key in self.api_keys.split(",") if key.strip()}
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     def resolve_network(self, network: str | None = None) -> str:
         """Validate and normalise a network name."""

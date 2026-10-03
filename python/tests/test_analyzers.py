@@ -27,6 +27,15 @@ def test_ledger_lag_seconds_parses_epoch():
 def test_ledger_lag_seconds_handles_garbage():
     assert analyzers.ledger_lag_seconds("not-a-date") is None
     assert analyzers.ledger_lag_seconds(None) is None
+    assert analyzers.ledger_lag_seconds("") is None
+    assert analyzers.ledger_lag_seconds(1e20) is None
+
+
+def test_ledger_lag_seconds_parses_z_suffix():
+    text = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lag = analyzers.ledger_lag_seconds(text)
+    assert lag is not None
+    assert abs(lag) < 30
 
 
 def test_build_network_metrics_healthy():
