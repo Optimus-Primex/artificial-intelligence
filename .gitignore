@@ -1,0 +1,39 @@
+# --- Python -----------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.db
+*.sqlite
+
+# --- Node / TypeScript ------------------------------------------------
+node_modules/
+dist/
+*.tsbuildinfo
+.npm/
+coverage/
+
+# --- Secrets ----------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Editors / OS -----------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
