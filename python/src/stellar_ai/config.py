@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     llm_provider: str = "static"
     request_timeout: float = 10.0
 
+    # Model access. Unused by the deterministic `static` provider.
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_timeout: float = 30.0
+
     # Comma-separated bearer tokens. Empty disables authentication (dev mode).
     api_keys: str = ""
     # Comma-separated allowed CORS origins. Empty disables CORS.

@@ -14,7 +14,7 @@ from . import analyzers
 from .agents.base import StellarInsightAgent
 from .config import Settings
 from .errors import install_error_handlers
-from .llm.provider import build_provider
+from .llm.provider import LLMError, build_provider
 from .logging_config import configure_logging
 from .middleware import install_request_middleware
 from .schemas import (
@@ -37,7 +37,13 @@ def create_app(
     """Build the FastAPI application, allowing collaborators to be overridden."""
 
     settings = settings or Settings()
-    provider = provider or build_provider(settings.llm_provider)
+    provider = provider or build_provider(
+        settings.llm_provider,
+        api_key=settings.llm_api_key,
+        model=settings.llm_model,
+        base_url=settings.llm_base_url,
+        timeout=settings.llm_timeout,
+    )
     configure_logging(settings.log_format)
 
     horizon_factory = horizon_factory or (
@@ -140,6 +146,8 @@ def create_app(
         try:
             result = agent.answer(request.message, net)
         except StellarClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except LLMError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return ChatResponse(
             answer=result.answer,

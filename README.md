@@ -14,16 +14,18 @@ This repository is a monorepo with two parts:
 - **`typescript/`** — `@optimus-primex/ai-client`, a typed client/SDK for the
   service.
 
-> Status: early framework. The service, clients, analyzers and SDK are in
-> place; model providers are pluggable and ship with a deterministic stub so
-> the whole stack runs and tests without network access or API keys.
+> Status: early framework with a working end-to-end path. The service, clients,
+> analyzers and SDK are in place. Two providers ship: a deterministic offline
+> `static` stub (used by tests/CI) and an `openai` provider for any
+> OpenAI-compatible `/chat/completions` endpoint.
 
 ## Why
 
 Stellar exposes a lot of machine data (ledgers, accounts, assets, Soroban
 contract events). This project is the home for AI features on top of it:
-summarising network health, explaining contract activity, answering
-natural-language questions, and flagging anomalies.
+summarising network health and answering natural-language questions today;
+contract-event summarisation and anomaly detection are the next milestone
+(see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Layout
 
@@ -85,7 +87,7 @@ const status = await client.networkStatus("testnet");
 | `GET` | `/health` | no | Liveness probe. |
 | `GET` | `/ready` | no | Readiness probe (checks Horizon + RPC). |
 | `GET` | `/api/v1/network/status?network=testnet` | yes | Latest ledger / node health. |
-| `POST` | `/api/v1/analyze` | yes | Analyse supplied network data. |
+| `POST` | `/api/v1/analyze` | yes | Recompute metrics and return a grounded summary. |
 | `POST` | `/api/v1/chat` | yes | Natural-language query through an agent. |
 
 Every response carries an `X-Request-ID`; errors use a consistent envelope
@@ -94,9 +96,23 @@ Every response carries an `X-Request-ID`; errors use a consistent envelope
 ## Configuration
 
 Settings are environment variables with the `STELLAR_AI_` prefix (see
-[`.env.example`](.env.example)): network, LLM provider, `STELLAR_AI_API_KEYS`
-(bearer keys; empty disables auth), `STELLAR_AI_CORS_ORIGINS`, and
-`STELLAR_AI_LOG_FORMAT` (`text` or `json`).
+[`.env.example`](.env.example)): network, LLM provider + credentials,
+`STELLAR_AI_API_KEYS` (bearer keys; empty disables auth),
+`STELLAR_AI_CORS_ORIGINS`, and `STELLAR_AI_LOG_FORMAT` (`text` or `json`).
+
+### Using a real model
+
+```bash
+export STELLAR_AI_LLM_PROVIDER=openai
+export STELLAR_AI_LLM_API_KEY=sk-...
+export STELLAR_AI_LLM_MODEL=gpt-4o-mini
+# Optional: point at a local OpenAI-compatible gateway (vLLM, Ollama, ...)
+export STELLAR_AI_LLM_BASE_URL=http://127.0.0.1:11434/v1
+```
+
+The provider calls `POST {base_url}/chat/completions` with the grounded prompt.
+Missing keys, HTTP failures and malformed completions surface as a `502` with a
+clear message; keys are never logged.
 
 ## Docker
 

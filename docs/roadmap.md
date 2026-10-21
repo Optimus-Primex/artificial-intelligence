@@ -8,7 +8,8 @@
 - [x] Tests + CI (Python 3.11/3.12, TypeScript)
 
 ## Phase 2 — Real model providers
-- [ ] OpenAI / Anthropic / local (Ollama) providers behind `LLMProvider`
+- [x] OpenAI-compatible HTTP provider (works with OpenAI and local gateways)
+- [ ] Native Anthropic provider
 - [ ] Prompt templates + streaming responses
 - [ ] Token/cost accounting
 

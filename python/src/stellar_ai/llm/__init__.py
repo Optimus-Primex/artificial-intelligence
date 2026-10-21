@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
-from .provider import LLMProvider, StaticProvider, build_provider
+from .provider import (
+    LLMError,
+    LLMProvider,
+    OpenAICompatibleProvider,
+    StaticProvider,
+    build_provider,
+)
 
-__all__ = ["LLMProvider", "StaticProvider", "build_provider"]
+__all__ = [
+    "LLMError",
+    "LLMProvider",
+    "OpenAICompatibleProvider",
+    "StaticProvider",
+    "build_provider",
+]
