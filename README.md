@@ -107,6 +107,9 @@ parameters return `400`, RPC failures return `502`.
 supplied, the decoded event summary is added to the prompt as context. Existing
 network-only chat requests are unchanged.
 
+Verified against the testnet escrow `CBBWLHEI3HUBZOVHCKSYGARLRGZYQ4VZCHYBYAIQN2A727J3COI7LMOQ`:
+the decoder read `created`, `funded` and `released` events with zero decode failures.
+
 ## Configuration
 
 Settings are environment variables with the `STELLAR_AI_` prefix (see
