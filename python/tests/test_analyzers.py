@@ -86,3 +86,27 @@ def test_summarise_mentions_network_and_state():
     assert "testnet" in text
     assert "healthy" in text
     assert "10" in text
+
+
+def test_missing_rpc_status_is_unhealthy():
+    metrics = analyzers.build_network_metrics(
+        network="testnet",
+        horizon_url="https://h",
+        rpc_url="https://r",
+        horizon_ledger={"sequence": 1, "closed_at": _iso()},
+        rpc_health=None,
+    )
+    assert metrics["healthy"] is False
+    assert metrics["rpc_health"] is None
+
+
+def test_protocol_version_falls_back_to_rpc_ledger():
+    metrics = analyzers.build_network_metrics(
+        network="testnet",
+        horizon_url="https://h",
+        rpc_url="https://r",
+        horizon_ledger={"sequence": 1, "closed_at": _iso()},
+        rpc_health={"status": "healthy"},
+        rpc_ledger={"sequence": 99, "protocolVersion": 21},
+    )
+    assert metrics["protocol_version"] == 21

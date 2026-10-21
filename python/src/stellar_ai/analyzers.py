@@ -56,16 +56,19 @@ def build_network_metrics(
     rpc_url: str | None,
     horizon_ledger: dict | None,
     rpc_health: dict | None,
+    rpc_ledger: dict | None = None,
     max_lag_seconds: float = DEFAULT_MAX_LEDGER_LAG,
 ) -> dict:
-    """Combine a Horizon ledger record and a Soroban RPC health into metrics."""
+    """Combine Horizon ledger, Soroban health and Soroban ledger data."""
 
     ledger = horizon_ledger or {}
     lag = ledger_lag_seconds(ledger.get("closed_at"))
     rpc_status = (rpc_health or {}).get("status")
+    rpc_status_text = rpc_status.strip().lower() if isinstance(rpc_status, str) else None
 
     lag_ok = lag is not None and lag <= max_lag_seconds
-    rpc_ok = rpc_status in (None, "healthy")
+    # A missing or unknown status is not evidence of health.
+    rpc_ok = rpc_status_text == "healthy"
     healthy = bool(lag_ok and rpc_ok)
 
     return {
@@ -74,8 +77,9 @@ def build_network_metrics(
         "latest_ledger": ledger.get("sequence"),
         "ledger_lag_seconds": lag,
         "protocol_version": ledger.get("protocol_version")
+        or (rpc_ledger or {}).get("protocolVersion")
         or (rpc_health or {}).get("protocolVersion"),
-        "rpc_health": rpc_status,
+        "rpc_health": rpc_status_text,
         "horizon_url": horizon_url,
         "rpc_url": rpc_url,
     }

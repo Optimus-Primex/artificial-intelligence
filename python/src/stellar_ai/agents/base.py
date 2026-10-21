@@ -35,12 +35,14 @@ class StellarInsightAgent:
     def collect_metrics(self, network: str) -> dict:
         ledger = self.horizon.latest_ledger()
         health = self.soroban.get_health()
+        rpc_ledger = self.soroban.latest_ledger()
         return analyzers.build_network_metrics(
             network=network,
             horizon_url=self.horizon.base_url,
             rpc_url=self.soroban.url,
             horizon_ledger=ledger,
             rpc_health=health,
+            rpc_ledger=rpc_ledger,
         )
 
     def answer(self, question: str, network: str) -> AgentResult:

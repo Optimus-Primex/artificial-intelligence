@@ -80,6 +80,12 @@ def test_horizon_account(monkeypatch):
     assert HorizonClient("https://h").account("G") == {"id": "G"}
 
 
+def test_horizon_invalid_json_becomes_client_error(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _response(200, text="<html>oops</html>"))
+    with pytest.raises(StellarClientError, match="invalid JSON"):
+        HorizonClient("https://horizon.example").latest_ledger()
+
+
 def test_soroban_uses_httpx_by_default(monkeypatch):
     monkeypatch.setattr(
         httpx,

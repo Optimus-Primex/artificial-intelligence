@@ -28,8 +28,10 @@
   functions over plain data; the agents combine them with fetched data + LLM
   output.
 - **Pluggable models.** `llm/` defines a `LLMProvider` protocol. The default
-  `StaticProvider` is deterministic (great for tests/CI); real providers can be
-  added without touching agents or routes.
+  `StaticProvider` is deterministic (great for tests/CI); `OpenAICompatibleProvider`
+  calls any `/chat/completions` endpoint and is configured through
+  `STELLAR_AI_LLM_*`. New providers can be added without touching agents or
+  routes.
 
 ## Data flow (example: `/api/v1/chat`)
 

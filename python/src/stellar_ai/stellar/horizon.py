@@ -27,6 +27,8 @@ class HorizonClient:
             return response.json()
         except httpx.HTTPError as exc:
             raise StellarClientError(str(exc)) from exc
+        except ValueError as exc:
+            raise StellarClientError(f"invalid JSON from Horizon: {exc}") from exc
 
     def latest_ledger(self) -> dict | None:
         """Return the most recently closed ledger record, if any."""

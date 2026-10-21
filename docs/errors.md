@@ -18,8 +18,8 @@ Every error response uses the same envelope:
 | `400 Bad Request` | Unknown `network` value | `unknown network: 'regtest' (expected one of: futurenet, mainnet, testnet)` |
 | `401 Unauthorized` | Missing/invalid API key when `STELLAR_AI_API_KEYS` is set | `invalid or missing API key` |
 | `422 Unprocessable Entity` | Request body failed validation | `validation error` (with `details`) |
-| `502 Bad Gateway` | Horizon or Soroban RPC could not be reached / returned an error | provider message |
-| `503 Service Unavailable` | `/ready` when a dependency is down | `unavailable` |
+| `502 Bad Gateway` | Horizon, Soroban RPC or the model provider failed | provider message |
+| `503 Service Unavailable` | `/ready` when a dependency is down (readiness body, not the error envelope) | `unavailable` |
 
 ## Notes
 
