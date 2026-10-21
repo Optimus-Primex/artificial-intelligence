@@ -31,12 +31,19 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
+release = [
+    "build>=1.2",
+    "twine>=5",
+]
 
 [project.scripts]
 stellar-ai = "stellar_ai.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/Optimus-Primex/artificial-intelligence"
+Repository = "https://github.com/Optimus-Primex/artificial-intelligence"
+Issues = "https://github.com/Optimus-Primex/artificial-intelligence/issues"
+Changelog = "https://github.com/Optimus-Primex/artificial-intelligence/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

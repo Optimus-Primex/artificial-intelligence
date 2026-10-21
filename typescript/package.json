@@ -15,10 +15,30 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Optimus-Primex/artificial-intelligence.git",
+    "directory": "typescript"
+  },
+  "homepage": "https://github.com/Optimus-Primex/artificial-intelligence#readme",
+  "bugs": {
+    "url": "https://github.com/Optimus-Primex/artificial-intelligence/issues"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "ai",
+    "llm",
+    "sdk"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
