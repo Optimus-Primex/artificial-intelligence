@@ -18,6 +18,14 @@ pip install -e ".[dev]"
 uvicorn stellar_ai.app:app --reload   # http://127.0.0.1:8000/docs
 ```
 
+## Contract events
+
+`GET /api/v1/contracts/{contract_id}/events?start_ledger=100&limit=50` fetches
+Soroban `getEvents` data and decodes it with `stellar-sdk`. The official
+`stellar-sdk` package is a runtime dependency used for local XDR decoding; the
+service talks to RPC through its own client, and tests inject fake RPC responses
+without touching the network.
+
 ## Test / lint
 
 ```bash

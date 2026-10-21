@@ -23,8 +23,8 @@ This repository is a monorepo with two parts:
 
 Stellar exposes a lot of machine data (ledgers, accounts, assets, Soroban
 contract events). This project is the home for AI features on top of it:
-summarising network health and answering natural-language questions today;
-contract-event summarisation and anomaly detection are the next milestone
+summarising network health, decoding contract events and answering
+natural-language questions today; anomaly detection is the next milestone
 (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Layout
@@ -36,10 +36,10 @@ artificial-intelligence/
 │   │   ├── app.py            # FastAPI application + routes
 │   │   ├── config.py         # settings (pydantic-settings)
 │   │   ├── schemas.py        # request/response models
-│   │   ├── analyzers.py      # pure analysis helpers
+│   │   ├── analyzers.py      # pure analysis helpers (network + events)
 │   │   ├── agents/           # agent interface + Stellar insight agent
 │   │   ├── llm/              # pluggable LLM providers (stub included)
-│   │   └── stellar/          # Horizon + Soroban RPC clients
+│   │   └── stellar/          # Horizon + Soroban RPC clients, XDR decoding
 │   └── tests/
 ├── typescript/
 │   ├── src/                  # client SDK
@@ -87,11 +87,25 @@ const status = await client.networkStatus("testnet");
 | `GET` | `/health` | no | Liveness probe. |
 | `GET` | `/ready` | no | Readiness probe (checks Horizon + RPC). |
 | `GET` | `/api/v1/network/status?network=testnet` | yes | Latest ledger / node health. |
+| `GET` | `/api/v1/contracts/{contract_id}/events?start_ledger=...&limit=...` | yes | Decode and summarise Soroban contract events. |
 | `POST` | `/api/v1/analyze` | yes | Recompute metrics and return a grounded summary. |
 | `POST` | `/api/v1/chat` | yes | Natural-language query through an agent. |
 
 Every response carries an `X-Request-ID`; errors use a consistent envelope
 (see [`docs/errors.md`](docs/errors.md)).
+
+### Soroban contract events
+
+`GET /api/v1/contracts/{contract_id}/events` calls Soroban RPC `getEvents` and
+decodes the base64 XDR `topic`/`value` fields with the official `stellar-sdk`.
+The response includes the event name (first topic), contract id, ledger, tx
+hash, decoded topics/value, and the raw event as a fallback when a payload
+cannot be decoded. `limit` is capped at 200; invalid contract ids or ledger
+parameters return `400`, RPC failures return `502`.
+
+`POST /api/v1/chat` accepts optional `contract_id` and `start_ledger` fields; when
+supplied, the decoded event summary is added to the prompt as context. Existing
+network-only chat requests are unchanged.
 
 ## Configuration
 
