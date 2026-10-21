@@ -41,4 +41,6 @@ export interface HealthResponse {
 export interface ClientOptions {
   /** Custom fetch implementation (defaults to `globalThis.fetch`). */
   fetch?: typeof fetch;
+  /** Sent as `Authorization: Bearer <apiKey>` when the service requires auth. */
+  apiKey?: string;
 }

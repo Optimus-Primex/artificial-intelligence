@@ -75,4 +75,49 @@ describe("AiClient", () => {
 
     await expect(client.networkStatus("testnet")).rejects.toBeInstanceOf(AiClientError);
   });
+
+  it("sends a bearer token when an apiKey is configured", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({ status: "ok", app: "stellar-ai", provider: "static" }),
+    );
+    const client = new AiClient("http://localhost:8000", {
+      fetch: fetchMock as unknown as typeof fetch,
+      apiKey: "secret-key",
+    });
+
+    await client.health();
+
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get("authorization")).toBe("Bearer secret-key");
+  });
+
+  it("surfaces non-JSON error bodies instead of throwing SyntaxError", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response("upstream unavailable", { status: 503 }),
+    );
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    await expect(client.health()).rejects.toMatchObject({
+      name: "AiClientError",
+      status: 503,
+      body: "upstream unavailable",
+    });
+  });
+
+  it("POSTs analyze requests", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({
+        summary: "testnet is healthy",
+        metrics: { network: "testnet", healthy: true },
+        provider: "static",
+      }),
+    );
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    const analysis = await client.analyze({ network: "testnet" });
+
+    expect(analysis.summary).toContain("healthy");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:8000/api/v1/analyze");
+  });
 });
