@@ -45,7 +45,15 @@ class StellarInsightAgent:
             rpc_ledger=rpc_ledger,
         )
 
-    def answer(self, question: str, network: str) -> AgentResult:
+    def answer(
+        self,
+        question: str,
+        network: str,
+        context: str | None = None,
+    ) -> AgentResult:
         metrics = self.collect_metrics(network)
-        prompt = f"{analyzers.summarise(metrics)}\n\nQuestion: {question.strip()}"
+        prompt = analyzers.summarise(metrics)
+        if context:
+            prompt = f"{prompt}\n{context}"
+        prompt = f"{prompt}\n\nQuestion: {question.strip()}"
         return AgentResult(answer=self.provider.complete(prompt), metrics=metrics)

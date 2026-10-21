@@ -36,6 +36,62 @@ def test_soroban_get_health():
     assert client.get_health() == {"status": "healthy"}
 
 
+def test_soroban_get_events_params():
+    captured = {}
+
+    def rpc_call(method, params):
+        captured["method"] = method
+        captured["params"] = params
+        return {"events": [], "latestLedger": 10}
+
+    client = SorobanRpcClient("https://rpc.example", rpc_call=rpc_call)
+    result = client.get_events(100, ["C1", "C2"], 50)
+    assert result == {"events": [], "latestLedger": 10}
+    assert captured["method"] == "getEvents"
+    assert captured["params"] == {
+        "startLedger": 100,
+        "filters": [{"type": "contract", "contractIds": ["C1", "C2"]}],
+        "limit": 50,
+        "xdrFormat": "base64",
+    }
+
+    client.get_events(100, "C1", 10, xdr_format=None)
+    assert captured["params"] == {
+        "startLedger": 100,
+        "filters": [{"type": "contract", "contractIds": ["C1"]}],
+        "limit": 10,
+    }
+
+    client.get_events(100)
+    assert captured["params"]["filters"] == [{"type": "contract"}]
+
+
+def test_soroban_get_events_validates_arguments():
+    client = SorobanRpcClient("https://rpc.example", rpc_call=lambda _m, _p: {})
+    with pytest.raises(ValueError, match="start_ledger"):
+        client.get_events(0)
+    with pytest.raises(ValueError, match="start_ledger"):
+        client.get_events("100")
+    with pytest.raises(ValueError, match="limit"):
+        client.get_events(1, limit=0)
+    with pytest.raises(ValueError, match="limit"):
+        client.get_events(1, limit=201)
+    with pytest.raises(ValueError, match="limit"):
+        client.get_events(1, limit="10")
+
+
+def test_soroban_latest_ledger_aliases():
+    def rpc_call(method, _params):
+        if method == "getNetwork":
+            return {"friendbotUrl": "https://friendbot.example"}
+        return {"sequence": 42}
+
+    client = SorobanRpcClient("https://rpc.example", rpc_call=rpc_call)
+    assert client.latest_ledger() == {"sequence": 42}
+    assert client.get_latest_ledger() == {"sequence": 42}
+    assert client.get_network() == {"friendbotUrl": "https://friendbot.example"}
+
+
 def test_client_errors_propagate():
     def boom_get(_url, _params):
         raise StellarClientError("horizon down")

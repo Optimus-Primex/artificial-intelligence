@@ -7,6 +7,7 @@ testable and the LLM prompt grounded in facts rather than raw JSON.
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import UTC, datetime
 
 DEFAULT_MAX_LEDGER_LAG = 30.0
@@ -98,3 +99,115 @@ def summarise(metrics: dict) -> str:
     if metrics.get("rpc_health"):
         lines.append(f"Soroban RPC health: {metrics['rpc_health']}.")
     return " ".join(lines)
+
+
+def _event_field(event, name, default=None):
+    if isinstance(event, dict):
+        return event.get(name, default)
+    return getattr(event, name, default)
+
+
+def build_event_metrics(
+    events,
+    *,
+    contract_id: str | None = None,
+    start_ledger: int | None = None,
+    latest_ledger: int | None = None,
+) -> dict:
+    """Compute deterministic metrics over decoded Soroban contract events."""
+
+    items = list(events or [])
+    total = len(items)
+    event_counts: Counter[str] = Counter()
+    contract_counts: Counter[str] = Counter()
+    ledger_counts: Counter[int] = Counter()
+    failed_decodes = 0
+
+    for event in items:
+        if _event_field(event, "decode_error"):
+            failed_decodes += 1
+        event_counts[_event_field(event, "event_name") or "unknown"] += 1
+        contract_counts[_event_field(event, "contract_id") or "unknown"] += 1
+        ledger = _event_field(event, "ledger")
+        if isinstance(ledger, int) and not isinstance(ledger, bool):
+            ledger_counts[ledger] += 1
+
+    latest_seen = max(ledger_counts) if ledger_counts else None
+    if latest_ledger is None:
+        latest_ledger = latest_seen
+
+    if ledger_counts:
+        ledger_range = {"min": min(ledger_counts), "max": max(ledger_counts)}
+        per_ledger = {
+            "min": min(ledger_counts.values()),
+            "max": max(ledger_counts.values()),
+            "avg": round(total / len(ledger_counts), 2),
+        }
+    else:
+        ledger_range = {"min": None, "max": None}
+        per_ledger = {"min": None, "max": None, "avg": None}
+
+    return {
+        "contract_id": contract_id,
+        "start_ledger": start_ledger,
+        "latest_ledger": latest_ledger,
+        "latest_ledger_seen": latest_seen,
+        "total_events": total,
+        "decoded_events": total - failed_decodes,
+        "failed_decodes": failed_decodes,
+        "event_counts": dict(sorted(event_counts.items())),
+        "contract_counts": dict(sorted(contract_counts.items())),
+        "ledger_range": ledger_range,
+        "events_per_ledger": per_ledger,
+    }
+
+
+def summarise_events(metrics) -> str:
+    """Render contract-event metrics as a short, factual LLM-friendly summary.
+
+    Accepts either a metrics dict from :func:`build_event_metrics` or a list of
+    decoded events (which is converted to metrics first).
+    """
+
+    if not isinstance(metrics, dict):
+        metrics = build_event_metrics(metrics)
+
+    total = metrics.get("total_events") or 0
+    contract = metrics.get("contract_id")
+    scope = f" for contract {contract}" if contract else ""
+    start = metrics.get("start_ledger")
+    latest = metrics.get("latest_ledger")
+
+    if total == 0:
+        window = f" from ledger {start}" if start is not None else ""
+        tail = f" Latest ledger: {latest}." if latest is not None else ""
+        return f"No Soroban contract events found{scope}{window}.{tail}"
+
+    noun = "event" if total == 1 else "events"
+    parts = [f"Found {total} Soroban contract {noun}{scope}"]
+    if start is not None:
+        parts[0] += f" from ledger {start}"
+    parts[0] += "."
+
+    ledger_range = metrics.get("ledger_range") or {}
+    min_ledger = ledger_range.get("min")
+    max_ledger = ledger_range.get("max")
+    if min_ledger is not None:
+        parts.append(f"Ledger range {min_ledger}-{max_ledger}.")
+
+    per_ledger = metrics.get("events_per_ledger") or {}
+    if per_ledger.get("avg") is not None:
+        parts.append(
+            "Events per ledger: "
+            f"min {per_ledger['min']}, max {per_ledger['max']}, avg {per_ledger['avg']}."
+        )
+
+    event_counts = metrics.get("event_counts") or {}
+    if event_counts:
+        rendered = ", ".join(f"{name}={count}" for name, count in event_counts.items())
+        parts.append(f"Event types: {rendered}.")
+
+    parts.append(f"Failed XDR decodes: {metrics.get('failed_decodes', 0)}.")
+    if latest is not None:
+        parts.append(f"Latest ledger: {latest}.")
+    return " ".join(parts)

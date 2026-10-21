@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from fixtures.soroban_events import EVENTS, EVENTS_RESULT, MALFORMED_EVENT
 
 from stellar_ai.app import create_app
 from stellar_ai.config import Settings
@@ -44,14 +45,27 @@ def fake_horizon_factory(ledger: dict | None = None, *, error: bool = False):
     return factory
 
 
-def fake_rpc_factory(health: dict | None = None, *, error: bool = False):
+def fake_rpc_factory(
+    health: dict | None = None,
+    *,
+    error: bool = False,
+    events: list[dict] | None = None,
+    events_error: bool = False,
+    latest_ledger: int = 100,
+):
     def factory(url: str) -> SorobanRpcClient:
         def rpc_call(method: str, _params: dict | None):
             if error:
                 raise StellarClientError("rpc unreachable")
             if method == "getHealth":
                 return health or {"status": "healthy", "protocolVersion": 20}
-            return {"sequence": 100}
+            if method == "getEvents":
+                if events_error:
+                    raise StellarClientError("events unavailable")
+                result = dict(EVENTS_RESULT if events is None else {"events": events})
+                result.setdefault("latestLedger", latest_ledger)
+                return result
+            return {"sequence": latest_ledger}
 
         return SorobanRpcClient(url, rpc_call=rpc_call)
 
@@ -85,6 +99,39 @@ def error_client(settings, provider) -> TestClient:
         settings,
         horizon_factory=fake_horizon_factory(error=True),
         rpc_factory=fake_rpc_factory(error=True),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def events_client(settings, provider) -> TestClient:
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(events=EVENTS, latest_ledger=105),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def malformed_events_client(settings, provider) -> TestClient:
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(events=[MALFORMED_EVENT]),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def events_error_client(settings, provider) -> TestClient:
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(events_error=True),
         provider=provider,
     )
     return TestClient(app)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -31,12 +33,37 @@ class AnalyzeResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     network: str | None = None
+    contract_id: str | None = None
+    start_ledger: int | None = None
+    event_limit: int = Field(default=50, ge=1, le=200)
 
 
 class ChatResponse(BaseModel):
     answer: str
     metrics: NetworkStatus
     provider: str
+
+
+class ContractEvent(BaseModel):
+    """Decoded Soroban contract event, with a raw fallback for bad XDR."""
+
+    event_name: str | None = None
+    contract_id: str | None = None
+    ledger: int | None = None
+    tx_hash: str | None = None
+    topics: list[Any] = Field(default_factory=list)
+    value: Any = None
+    decoded: bool = True
+    decode_error: str | None = None
+    raw: dict[str, Any] = Field(default_factory=dict)
+
+
+class ContractEventsResponse(BaseModel):
+    contract_id: str
+    start_ledger: int
+    latest_ledger: int | None = None
+    summary: str
+    events: list[ContractEvent] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):

@@ -22,10 +22,13 @@ from .schemas import (
     AnalyzeResponse,
     ChatRequest,
     ChatResponse,
+    ContractEvent,
+    ContractEventsResponse,
     HealthResponse,
     NetworkStatus,
 )
 from .stellar import HorizonClient, SorobanRpcClient, StellarClientError
+from .stellar import events as stellar_events
 
 
 def create_app(
@@ -116,6 +119,17 @@ def create_app(
             )
         return {"status": "ready", "network": net}
 
+    def decode_contract_events(agent, contract_id: str, start_ledger: int, limit: int):
+        result = agent.soroban.get_events(start_ledger, [contract_id], limit)
+        decoded = stellar_events.decode_events(result, [contract_id])
+        metrics = analyzers.build_event_metrics(
+            decoded,
+            contract_id=contract_id,
+            start_ledger=start_ledger,
+            latest_ledger=stellar_events.latest_ledger_from_result(result),
+        )
+        return decoded, metrics
+
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
 
     @api.get("/network/status", response_model=NetworkStatus)
@@ -126,6 +140,49 @@ def create_app(
         except StellarClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return NetworkStatus(**metrics)
+
+    @api.get("/contracts/{contract_id}/events", response_model=ContractEventsResponse)
+    def contract_events(
+        contract_id: str,
+        start_ledger: str | None = Query(
+            default=None, description="Starting ledger (positive integer)."
+        ),
+        limit: str = Query(default="100", description="Maximum events to return (1-200)."),
+        network: str | None = Query(default=None),
+    ) -> ContractEventsResponse:
+        try:
+            contract = stellar_events.validate_contract_id(contract_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            start = int(start_ledger) if start_ledger is not None else None
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400, detail="start_ledger must be a positive integer"
+            ) from exc
+        if start is None or start < 1:
+            raise HTTPException(status_code=400, detail="start_ledger must be a positive integer")
+
+        try:
+            parsed_limit = int(limit)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="limit must be between 1 and 200") from exc
+        if not 1 <= parsed_limit <= 200:
+            raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
+
+        agent, _net = build_agent(network)
+        try:
+            decoded, metrics = decode_contract_events(agent, contract, start, parsed_limit)
+        except StellarClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return ContractEventsResponse(
+            contract_id=contract,
+            start_ledger=start,
+            latest_ledger=metrics["latest_ledger"],
+            summary=analyzers.summarise_events(metrics),
+            events=[ContractEvent(**event.as_dict()) for event in decoded],
+        )
 
     @api.post("/analyze", response_model=AnalyzeResponse)
     def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
@@ -143,8 +200,31 @@ def create_app(
     @api.post("/chat", response_model=ChatResponse)
     def chat(request: ChatRequest) -> ChatResponse:
         agent, net = build_agent(request.network)
+        context = None
         try:
-            result = agent.answer(request.message, net)
+            if request.contract_id:
+                try:
+                    contract = stellar_events.validate_contract_id(request.contract_id)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+                start_ledger = request.start_ledger
+                if start_ledger is None:
+                    latest = agent.soroban.latest_ledger() or {}
+                    sequence = latest.get("sequence") if isinstance(latest, dict) else None
+                    start_ledger = max(1, sequence - 100) if isinstance(sequence, int) else 1
+                if start_ledger < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="start_ledger must be a positive integer",
+                    )
+
+                _decoded, event_metrics = decode_contract_events(
+                    agent, contract, start_ledger, request.event_limit
+                )
+                context = analyzers.summarise_events(event_metrics)
+
+            result = agent.answer(request.message, net, context=context)
         except StellarClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except LLMError as exc:
