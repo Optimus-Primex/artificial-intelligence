@@ -27,6 +27,26 @@ def test_horizon_no_ledgers_returns_none():
     assert client.latest_ledger() is None
 
 
+def test_horizon_recent_ledgers_params_and_clamping():
+    captured = {}
+
+    def http_get(_url, params):
+        captured["params"] = params
+        return {"_embedded": {"records": [{"sequence": 3}, "junk", {"sequence": 2}]}}
+
+    client = HorizonClient("https://h", http_get=http_get)
+
+    assert client.recent_ledgers(2) == [{"sequence": 3}, {"sequence": 2}]
+    assert captured["params"] == {"order": "desc", "limit": 2}
+
+    client.recent_ledgers(0)
+    assert captured["params"]["limit"] == 1
+    client.recent_ledgers(500)
+    assert captured["params"]["limit"] == 200
+    client.recent_ledgers("bad")
+    assert captured["params"]["limit"] == 20
+
+
 def test_soroban_get_health():
     def rpc_call(method, _params):
         assert method == "getHealth"

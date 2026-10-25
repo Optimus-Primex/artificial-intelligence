@@ -27,13 +27,23 @@ class StellarInsightAgent:
         horizon: HorizonClient,
         soroban: SorobanRpcClient,
         provider: LLMProvider,
+        *,
+        max_ledger_lag_seconds: float = analyzers.DEFAULT_MAX_LEDGER_LAG,
+        max_close_interval_seconds: float = analyzers.DEFAULT_MAX_CLOSE_INTERVAL,
+        close_interval_outlier_factor: float = analyzers.DEFAULT_CLOSE_INTERVAL_FACTOR,
+        ledger_history_limit: int = 20,
     ):
         self.horizon = horizon
         self.soroban = soroban
         self.provider = provider
+        self.max_ledger_lag_seconds = max_ledger_lag_seconds
+        self.max_close_interval_seconds = max_close_interval_seconds
+        self.close_interval_outlier_factor = close_interval_outlier_factor
+        self.ledger_history_limit = max(1, int(ledger_history_limit))
 
     def collect_metrics(self, network: str) -> dict:
-        ledger = self.horizon.latest_ledger()
+        recent = self.horizon.recent_ledgers(self.ledger_history_limit)
+        ledger = recent[0] if recent else self.horizon.latest_ledger()
         health = self.soroban.get_health()
         rpc_ledger = self.soroban.latest_ledger()
         return analyzers.build_network_metrics(
@@ -43,6 +53,10 @@ class StellarInsightAgent:
             horizon_ledger=ledger,
             rpc_health=health,
             rpc_ledger=rpc_ledger,
+            recent_ledgers=recent,
+            max_lag_seconds=self.max_ledger_lag_seconds,
+            max_close_interval_seconds=self.max_close_interval_seconds,
+            close_interval_outlier_factor=self.close_interval_outlier_factor,
         )
 
     def answer(
