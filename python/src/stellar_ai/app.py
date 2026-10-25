@@ -17,6 +17,7 @@ from .errors import install_error_handlers
 from .llm.provider import LLMError, build_provider
 from .logging_config import configure_logging
 from .middleware import install_request_middleware
+from .rate_limit import install_rate_limit_middleware
 from .schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -58,6 +59,9 @@ def create_app(
 
     app = FastAPI(title="Stellar AI", version="0.1.0")
 
+    # Add the rate limiter first so the request-id/logging middleware wraps it
+    # and 429 responses still carry X-Request-ID.
+    install_rate_limit_middleware(app, settings)
     install_request_middleware(app)
     install_error_handlers(app)
 

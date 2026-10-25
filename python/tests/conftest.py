@@ -83,6 +83,32 @@ def provider() -> FakeProvider:
 
 
 @pytest.fixture()
+def app_factory(provider):
+    """Build apps with per-test settings and deterministic collaborators."""
+
+    def make(**overrides):
+        settings = Settings(default_network="testnet", **overrides)
+        return create_app(
+            settings,
+            horizon_factory=fake_horizon_factory(),
+            rpc_factory=fake_rpc_factory(),
+            provider=provider,
+        )
+
+    return make
+
+
+@pytest.fixture()
+def client_factory(app_factory):
+    """Build clients with per-test settings."""
+
+    def make(**overrides) -> TestClient:
+        return TestClient(app_factory(**overrides))
+
+    return make
+
+
+@pytest.fixture()
 def client(settings, provider) -> TestClient:
     app = create_app(
         settings,
