@@ -11,6 +11,19 @@ def test_defaults():
     settings = Settings()
     assert settings.app_name == "stellar-ai"
     assert settings.llm_provider == "static"
+    assert settings.whale_asset == "XLM"
+    assert settings.whale_threshold == 100000.0
+    assert settings.payment_limit == 50
+
+
+def test_whale_settings_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("STELLAR_AI_WHALE_ASSET", "USDC:GISSUER")
+    monkeypatch.setenv("STELLAR_AI_WHALE_THRESHOLD", "250")
+    monkeypatch.setenv("STELLAR_AI_PAYMENT_LIMIT", "10")
+    settings = Settings()
+    assert settings.whale_asset == "USDC:GISSUER"
+    assert settings.whale_threshold == 250.0
+    assert settings.payment_limit == 10
 
 
 def test_resolve_network_is_case_insensitive(settings):

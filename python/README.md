@@ -44,3 +44,6 @@ Environment variables use the `STELLAR_AI_` prefix:
 | `STELLAR_AI_HORIZON_URL` | per-network | Override the Horizon endpoint. |
 | `STELLAR_AI_SOROBAN_RPC_URL` | per-network | Override the Soroban RPC endpoint. |
 | `STELLAR_AI_REQUEST_TIMEOUT` | `10` | Outbound request timeout (seconds). |
+| `STELLAR_AI_WHALE_ASSET` | `XLM` | Asset scanned by `/api/v1/analyze` (`XLM` or `CODE:ISSUER`). |
+| `STELLAR_AI_WHALE_THRESHOLD` | `100000` | Amount at or above which a transfer is a whale alert. |
+| `STELLAR_AI_PAYMENT_LIMIT` | `50` | Recent payments scanned per analysis (1-200). |

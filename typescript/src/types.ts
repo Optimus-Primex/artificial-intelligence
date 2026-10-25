@@ -13,12 +13,44 @@ export interface NetworkStatus {
 
 export interface AnalyzeRequest {
   network?: string;
+  /** Asset to scan for whale transfers: `XLM` or `CODE:ISSUER`. */
+  asset?: string;
+  /** Override the configured whale threshold for this request. */
+  whale_threshold?: number;
+  /** Number of recent payments to inspect (1-200). */
+  payment_limit?: number;
+}
+
+export interface WhaleAlert {
+  amount: number;
+  asset: string;
+  from_account?: string | null;
+  to_account?: string | null;
+  transaction_hash?: string | null;
+  created_at?: string | null;
+  ledger?: number | null;
+}
+
+export interface PaymentAnalysis {
+  network: string;
+  asset: string;
+  threshold: number;
+  limit: number;
+  payments_scanned: number;
+  matching_payments: number;
+  skipped_payments?: number;
+  whale_count: number;
+  total_volume: number;
+  largest_payment?: WhaleAlert | null;
+  alerts: WhaleAlert[];
 }
 
 export interface AnalyzeResponse {
   summary: string;
   metrics: NetworkStatus;
   provider: string;
+  payments?: PaymentAnalysis | null;
+  alerts?: WhaleAlert[];
 }
 
 export interface ChatRequest {

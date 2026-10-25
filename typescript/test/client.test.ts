@@ -120,4 +120,40 @@ describe("AiClient", () => {
     expect(analysis.summary).toContain("healthy");
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:8000/api/v1/analyze");
   });
+
+  it("passes whale options and returns payment alerts", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({
+        summary: "testnet is healthy. Detected 1 whale transfer.",
+        metrics: { network: "testnet", healthy: true },
+        provider: "static",
+        payments: {
+          network: "testnet",
+          asset: "XLM",
+          threshold: 100,
+          limit: 10,
+          payments_scanned: 10,
+          matching_payments: 4,
+          whale_count: 1,
+          total_volume: 500,
+          alerts: [{ amount: 250, asset: "XLM", transaction_hash: "tx" }],
+        },
+        alerts: [{ amount: 250, asset: "XLM", transaction_hash: "tx" }],
+      }),
+    );
+    const client = clientWith(fetchMock as unknown as typeof fetch);
+
+    const request = {
+      network: "testnet",
+      asset: "XLM",
+      whale_threshold: 100,
+      payment_limit: 10,
+    };
+    const analysis = await client.analyze(request);
+
+    expect(analysis.payments?.whale_count).toBe(1);
+    expect(analysis.alerts?.[0]?.amount).toBe(250);
+    const call = fetchMock.mock.calls[0];
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual(request);
+  });
 });

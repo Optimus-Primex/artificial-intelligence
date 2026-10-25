@@ -136,6 +136,26 @@ def test_horizon_account(monkeypatch):
     assert HorizonClient("https://h").account("G") == {"id": "G"}
 
 
+def test_horizon_recent_payments():
+    captured = {}
+
+    def http_get(url, params):
+        captured["url"] = url
+        captured["params"] = params
+        return {"_embedded": {"records": [{"type": "payment", "amount": "1"}]}}
+
+    client = HorizonClient("https://horizon.example/", http_get=http_get)
+    records = client.recent_payments(limit=10)
+    assert records == [{"type": "payment", "amount": "1"}]
+    assert captured["url"] == "https://horizon.example/payments"
+    assert captured["params"] == {"order": "desc", "limit": 10, "include_failed": "false"}
+
+
+def test_horizon_recent_payments_missing_embedded():
+    client = HorizonClient("https://h", http_get=lambda _u, _p: {})
+    assert client.recent_payments() == []
+
+
 def test_horizon_invalid_json_becomes_client_error(monkeypatch):
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _response(200, text="<html>oops</html>"))
     with pytest.raises(StellarClientError, match="invalid JSON"):

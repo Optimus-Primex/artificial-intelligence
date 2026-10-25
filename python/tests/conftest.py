@@ -33,16 +33,59 @@ class FakeProvider:
         return self.answer
 
 
-def fake_horizon_factory(ledger: dict | None = None, *, error: bool = False):
+def fake_horizon_factory(
+    ledger: dict | None = None,
+    *,
+    payments: list[dict] | None = None,
+    error: bool = False,
+):
     def factory(url: str) -> HorizonClient:
-        def http_get(_url: str, _params: dict | None):
+        def http_get(request_url: str, _params: dict | None):
             if error:
                 raise StellarClientError("horizon unreachable")
+            if request_url.endswith("/payments"):
+                return {"_embedded": {"records": list(payments or [])}}
             return {"_embedded": {"records": [ledger or {"sequence": 100, "closed_at": iso()}]}}
 
         return HorizonClient(url, http_get=http_get)
 
     return factory
+
+
+PAYMENTS = [
+    {
+        "type": "payment",
+        "asset_type": "native",
+        "amount": "250000.0000000",
+        "from": "GFROM",
+        "to": "GTO",
+        "transaction_hash": "whale-tx",
+        "created_at": iso(),
+        "transaction_successful": True,
+    },
+    {
+        "type": "payment",
+        "asset_type": "native",
+        "amount": "10.0000000",
+        "from": "GFROM",
+        "to": "GTO",
+        "transaction_hash": "small-tx",
+        "created_at": iso(),
+        "transaction_successful": True,
+    },
+    {
+        "type": "payment",
+        "asset_type": "credit_alphanum4",
+        "asset_code": "USDC",
+        "asset_issuer": "GISSUER",
+        "amount": "999999.0000000",
+        "from": "GFROM",
+        "to": "GTO",
+        "transaction_hash": "usdc-tx",
+        "created_at": iso(),
+        "transaction_successful": True,
+    },
+]
 
 
 def fake_rpc_factory(
@@ -87,6 +130,17 @@ def client(settings, provider) -> TestClient:
     app = create_app(
         settings,
         horizon_factory=fake_horizon_factory(),
+        rpc_factory=fake_rpc_factory(),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def payments_client(settings, provider) -> TestClient:
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(payments=PAYMENTS),
         rpc_factory=fake_rpc_factory(),
         provider=provider,
     )

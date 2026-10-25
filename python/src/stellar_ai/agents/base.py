@@ -45,6 +45,25 @@ class StellarInsightAgent:
             rpc_ledger=rpc_ledger,
         )
 
+    def collect_payments(
+        self,
+        network: str,
+        *,
+        asset: str | None = None,
+        threshold: float = analyzers.DEFAULT_WHALE_THRESHOLD,
+        limit: int = 50,
+    ) -> dict:
+        """Scan recent Horizon payments and flag whale-sized transfers."""
+
+        payments = self.horizon.recent_payments(limit=limit)
+        return analyzers.build_payment_metrics(
+            payments,
+            network=network,
+            asset=asset or analyzers.DEFAULT_WHALE_ASSET,
+            threshold=threshold,
+            limit=limit,
+        )
+
     def answer(
         self,
         question: str,
