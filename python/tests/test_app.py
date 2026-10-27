@@ -52,3 +52,24 @@ def test_chat_rejects_empty_message(client):
 
 def test_stellar_error_returns_502(error_client):
     assert error_client.get("/api/v1/network/status").status_code == 502
+
+
+def test_analyze_surfaces_ledger_anomaly_flags(anomalous_client):
+    response = anomalous_client.post("/api/v1/analyze", json={"network": "testnet"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["flags"]
+    assert body["flags"][0]["code"] == "ledger_lag"
+    assert body["metrics"]["flags"] == body["flags"]
+    assert body["metrics"]["ledger_series"]["anomalous"] is True
+    assert "Anomalies:" in body["summary"]
+
+
+def test_network_status_includes_ledger_series(anomalous_client):
+    response = anomalous_client.get("/api/v1/network/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ledger_series"]["samples"] == 3
+    assert body["healthy"] is False
