@@ -52,3 +52,17 @@ class HorizonClient:
         """Return a Horizon account record."""
 
         return self._get(f"/accounts/{account_id}") or {}
+
+    def recent_payments(self, limit: int = 50) -> list[dict]:
+        """Return the most recent payment-like operations, newest first.
+
+        Horizon's ``/payments`` endpoint does not reliably filter by asset, so
+        callers receive the raw window and filter it with the analyzers.
+        """
+
+        data = self._get(
+            "/payments",
+            {"order": "desc", "limit": limit, "include_failed": "false"},
+        )
+        records = (data or {}).get("_embedded", {}).get("records", [])
+        return records if isinstance(records, list) else []

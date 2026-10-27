@@ -26,6 +26,8 @@ from .schemas import (
     ContractEventsResponse,
     HealthResponse,
     NetworkStatus,
+    PaymentAnalysis,
+    WhaleAlert,
 )
 from .stellar import HorizonClient, SorobanRpcClient, StellarClientError
 from .stellar import events as stellar_events
@@ -191,14 +193,30 @@ def create_app(
     @api.post("/analyze", response_model=AnalyzeResponse)
     def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         agent, net = build_agent(request.network)
+        asset = request.asset or settings.whale_asset
+        threshold = (
+            request.whale_threshold
+            if request.whale_threshold is not None
+            else settings.whale_threshold
+        )
+        limit = (
+            request.payment_limit if request.payment_limit is not None else settings.payment_limit
+        )
         try:
             metrics = agent.collect_metrics(net)
+            payment_metrics = agent.collect_payments(
+                net, asset=asset, threshold=threshold, limit=limit
+            )
         except StellarClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        summary = f"{analyzers.summarise(metrics)} {analyzers.summarise_payments(payment_metrics)}"
         return AnalyzeResponse(
-            summary=analyzers.summarise(metrics),
+            summary=summary,
             metrics=NetworkStatus(**metrics),
             provider=provider.name,
+            payments=PaymentAnalysis(**payment_metrics),
+            alerts=[WhaleAlert(**alert) for alert in payment_metrics["alerts"]],
             flags=metrics.get("flags", []),
         )
 
