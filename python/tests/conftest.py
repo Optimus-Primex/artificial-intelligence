@@ -38,14 +38,23 @@ def fake_horizon_factory(
     *,
     payments: list[dict] | None = None,
     error: bool = False,
+    ledgers: list[dict] | None = None,
 ):
     def factory(url: str) -> HorizonClient:
-        def http_get(request_url: str, _params: dict | None):
+        records = (
+            list(ledgers)
+            if ledgers is not None
+            else [ledger or {"sequence": 100, "closed_at": iso()}]
+        )
+
+        def http_get(request_url: str, params: dict | None):
             if error:
                 raise StellarClientError("horizon unreachable")
             if request_url.endswith("/payments"):
                 return {"_embedded": {"records": list(payments or [])}}
-            return {"_embedded": {"records": [ledger or {"sequence": 100, "closed_at": iso()}]}}
+            limit = (params or {}).get("limit")
+            selected = records[:limit] if isinstance(limit, int) else records
+            return {"_embedded": {"records": selected}}
 
         return HorizonClient(url, http_get=http_get)
 
@@ -141,6 +150,22 @@ def payments_client(settings, provider) -> TestClient:
     app = create_app(
         settings,
         horizon_factory=fake_horizon_factory(payments=PAYMENTS),
+        rpc_factory=fake_rpc_factory(),
+        provider=provider,
+    )
+    return TestClient(app)
+
+
+@pytest.fixture()
+def anomalous_client(settings, provider) -> TestClient:
+    ledgers = [
+        {"sequence": 100, "closed_at": iso(-600)},
+        {"sequence": 99, "closed_at": iso(-605)},
+        {"sequence": 98, "closed_at": iso(-610)},
+    ]
+    app = create_app(
+        settings,
+        horizon_factory=fake_horizon_factory(ledgers=ledgers),
         rpc_factory=fake_rpc_factory(),
         provider=provider,
     )

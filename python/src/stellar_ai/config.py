@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     llm_provider: str = "static"
     request_timeout: float = 10.0
 
+    # Ledger anomaly detection. Thresholds are in seconds.
+    ledger_history_limit: int = 20
+    max_ledger_lag_seconds: float = 30.0
+    max_close_interval_seconds: float = 30.0
+    close_interval_outlier_factor: float = 3.0
+
     # Model access. Unused by the deterministic `static` provider.
     llm_api_key: str = ""
     llm_model: str = "gpt-4o-mini"

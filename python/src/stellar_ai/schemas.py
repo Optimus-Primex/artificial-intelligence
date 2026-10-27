@@ -7,6 +7,28 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class AnomalyFlag(BaseModel):
+    """A deterministic anomaly found in a recent ledger series."""
+
+    code: str
+    severity: str
+    message: str
+    ledger: int | None = None
+    previous_ledger: int | None = None
+    value: float | None = None
+    threshold: float | None = None
+
+
+class LedgerSeries(BaseModel):
+    """Summary of close-time intervals for recent ledgers."""
+
+    samples: int = 0
+    latest_ledger: int | None = None
+    latest_lag_seconds: float | None = None
+    close_intervals: dict[str, float | None] = Field(default_factory=dict)
+    anomalous: bool = False
+
+
 class NetworkStatus(BaseModel):
     """Structured snapshot of a Stellar network's health."""
 
@@ -18,6 +40,8 @@ class NetworkStatus(BaseModel):
     rpc_health: str | None = None
     horizon_url: str | None = None
     rpc_url: str | None = None
+    ledger_series: LedgerSeries | None = None
+    flags: list[AnomalyFlag] = Field(default_factory=list)
 
 
 class AnalyzeRequest(BaseModel):
@@ -64,6 +88,7 @@ class AnalyzeResponse(BaseModel):
     provider: str
     payments: PaymentAnalysis | None = None
     alerts: list[WhaleAlert] = Field(default_factory=list)
+    flags: list[AnomalyFlag] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):

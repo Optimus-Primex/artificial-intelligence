@@ -30,11 +30,22 @@ class HorizonClient:
         except ValueError as exc:
             raise StellarClientError(f"invalid JSON from Horizon: {exc}") from exc
 
+    def recent_ledgers(self, limit: int = 20) -> list[dict]:
+        """Return up to ``limit`` of the most recently closed ledgers."""
+
+        try:
+            parsed_limit = int(limit)
+        except (TypeError, ValueError):
+            parsed_limit = 20
+        parsed_limit = max(1, min(parsed_limit, 200))
+        data = self._get("/ledgers", {"order": "desc", "limit": parsed_limit})
+        records = (data or {}).get("_embedded", {}).get("records", [])
+        return [record for record in records if isinstance(record, dict)]
+
     def latest_ledger(self) -> dict | None:
         """Return the most recently closed ledger record, if any."""
 
-        data = self._get("/ledgers", {"order": "desc", "limit": 1})
-        records = (data or {}).get("_embedded", {}).get("records", [])
+        records = self.recent_ledgers(1)
         return records[0] if records else None
 
     def account(self, account_id: str) -> dict:

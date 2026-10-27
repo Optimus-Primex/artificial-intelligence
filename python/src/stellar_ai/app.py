@@ -82,6 +82,10 @@ def create_app(
             horizon_factory(settings.horizon_url_for(net)),
             rpc_factory(settings.rpc_url_for(net)),
             provider,
+            max_ledger_lag_seconds=settings.max_ledger_lag_seconds,
+            max_close_interval_seconds=settings.max_close_interval_seconds,
+            close_interval_outlier_factor=settings.close_interval_outlier_factor,
+            ledger_history_limit=settings.ledger_history_limit,
         )
         return agent, net
 
@@ -213,6 +217,7 @@ def create_app(
             provider=provider.name,
             payments=PaymentAnalysis(**payment_metrics),
             alerts=[WhaleAlert(**alert) for alert in payment_metrics["alerts"]],
+            flags=metrics.get("flags", []),
         )
 
     @api.post("/chat", response_model=ChatResponse)
