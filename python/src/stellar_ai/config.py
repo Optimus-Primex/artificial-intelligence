@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.openai.com/v1"
     llm_timeout: float = 30.0
 
+    # Whale-transfer detection (used by POST /api/v1/analyze).
+    #: Default asset to analyse ("XLM" or "CODE:ISSUER").
+    whale_asset: str = "XLM"
+    #: Payments at or above this amount are reported as whale alerts.
+    whale_threshold: float = 100000.0
+    #: Number of recent Horizon payments to inspect per analysis.
+    payment_limit: int = 50
+
     # Comma-separated bearer tokens. Empty disables authentication (dev mode).
     api_keys: str = ""
     # Comma-separated allowed CORS origins. Empty disables CORS.

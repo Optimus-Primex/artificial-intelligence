@@ -129,6 +129,56 @@ network-only chat requests are unchanged.
 Verified against the testnet escrow `CBBWLHEI3HUBZOVHCKSYGARLRGZYQ4VZCHYBYAIQN2A727J3COI7LMOQ`:
 the decoder read `created`, `funded` and `released` events with zero decode failures.
 
+### Whale transfer alerts
+
+`POST /api/v1/analyze` also scans recent Horizon payments and surfaces
+whale-sized transfers for one asset. The threshold, asset, and scan window are
+configurable per request or via `STELLAR_AI_WHALE_THRESHOLD`,
+`STELLAR_AI_WHALE_ASSET`, and `STELLAR_AI_PAYMENT_LIMIT`:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"network":"testnet","asset":"XLM","whale_threshold":100000,"payment_limit":50}'
+```
+
+```json
+{
+  "summary": "Stellar testnet is healthy. ... Detected 1 whale transfer at or above 100000 XLM ...",
+  "metrics": { "network": "testnet", "healthy": true, "..." : "..." },
+  "provider": "static",
+  "payments": {
+    "network": "testnet",
+    "asset": "XLM",
+    "threshold": 100000.0,
+    "limit": 50,
+    "payments_scanned": 50,
+    "matching_payments": 48,
+    "whale_count": 1,
+    "total_volume": 1234567.0,
+    "largest_payment": { "amount": 250000.0, "asset": "XLM", "..." : "..." },
+    "alerts": [
+      {
+        "amount": 250000.0,
+        "asset": "XLM",
+        "from_account": "G...",
+        "to_account": "G...",
+        "transaction_hash": "...",
+        "created_at": "2026-10-25T12:00:00Z",
+        "ledger": 123456
+      }
+    ]
+  },
+  "alerts": [ "..." ]
+}
+```
+
+Amounts are decimal asset units as returned by Horizon, not stroops. Asset
+labels are `XLM` (native) or `CODE:ISSUER` (for example
+`USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`);
+a bare `CODE` matches any issuer. Payments at or above the threshold count as
+whales; malformed or failed operations are skipped.
+
 ### Ledger anomaly detection
 
 `POST /api/v1/analyze` fetches the most recent ledgers from Horizon and returns
@@ -153,8 +203,9 @@ Settings are environment variables with the `STELLAR_AI_` prefix (see
 [`.env.example`](.env.example)): network, LLM provider + credentials,
 `STELLAR_AI_API_KEYS` (bearer keys; empty disables auth),
 `STELLAR_AI_CORS_ORIGINS`, `STELLAR_AI_LOG_FORMAT` (`text` or `json`), and the
-rate-limit settings described in [Rate limiting](#rate-limiting), and the
-ledger anomaly thresholds listed above.
+rate-limit settings described in [Rate limiting](#rate-limiting), the
+whale-detection defaults `STELLAR_AI_WHALE_ASSET`, `STELLAR_AI_WHALE_THRESHOLD`,
+`STELLAR_AI_PAYMENT_LIMIT`, and the ledger anomaly thresholds listed above.
 
 ### Using a real model
 
