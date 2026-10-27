@@ -7,6 +7,7 @@ Soroban RPC endpoints are built in per network and can be overridden.
 
 from __future__ import annotations
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: Well-known public endpoints per Stellar network.
@@ -66,6 +67,13 @@ class Settings(BaseSettings):
     api_keys: str = ""
     # Comma-separated allowed CORS origins. Empty disables CORS.
     cors_origins: str = ""
+
+    # Per-key/per-IP rate limiting for /api/ routes. The defaults allow a burst
+    # of 60 requests per minute, which is comfortable for a dashboard but stops
+    # a runaway loop from draining a model budget.
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = Field(default=60, ge=1)
+    rate_limit_window_seconds: float = Field(default=60.0, gt=0)
     # "text" (human friendly) or "json" (structured).
     log_format: str = "text"
 

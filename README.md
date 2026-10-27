@@ -94,6 +94,25 @@ const status = await client.networkStatus("testnet");
 Every response carries an `X-Request-ID`; errors use a consistent envelope
 (see [`docs/errors.md`](docs/errors.md)).
 
+### Rate limiting
+
+`/api/` routes use a sliding-window limit per configured API key (the key is
+hashed in memory) or, when authentication is disabled or the key is unknown,
+per client IP. The defaults are 60 requests per 60 seconds and can be changed
+with `STELLAR_AI_RATE_LIMIT_REQUESTS` and
+`STELLAR_AI_RATE_LIMIT_WINDOW_SECONDS`; set `STELLAR_AI_RATE_LIMIT_ENABLED=false`
+to disable it.
+
+Rejected requests return `429` with `Retry-After` and the standard error
+envelope. Every `/api/` response includes `X-RateLimit-Limit`,
+`X-RateLimit-Remaining`, and `X-RateLimit-Reset`. `/health` and `/ready` are
+exempt.
+
+The counter is in-process, so it applies per worker. Use a shared store (for
+example Redis) before running multiple workers behind a load balancer, and note
+that without a trusted proxy header every client behind a NAT shares one IP
+bucket.
+
 ### Soroban contract events
 
 `GET /api/v1/contracts/{contract_id}/events` calls Soroban RPC `getEvents` and
@@ -184,6 +203,7 @@ Settings are environment variables with the `STELLAR_AI_` prefix (see
 [`.env.example`](.env.example)): network, LLM provider + credentials,
 `STELLAR_AI_API_KEYS` (bearer keys; empty disables auth),
 `STELLAR_AI_CORS_ORIGINS`, `STELLAR_AI_LOG_FORMAT` (`text` or `json`), and the
+rate-limit settings described in [Rate limiting](#rate-limiting), the
 whale-detection defaults `STELLAR_AI_WHALE_ASSET`, `STELLAR_AI_WHALE_THRESHOLD`,
 `STELLAR_AI_PAYMENT_LIMIT`, and the ledger anomaly thresholds listed above.
 
