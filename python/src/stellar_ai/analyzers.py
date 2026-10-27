@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime
+from statistics import median
 
 DEFAULT_MAX_LEDGER_LAG = 30.0
+DEFAULT_MAX_CLOSE_INTERVAL = 30.0
+DEFAULT_CLOSE_INTERVAL_FACTOR = 3.0
 
 
 def parse_timestamp(value) -> datetime | None:
@@ -50,6 +53,164 @@ def ledger_lag_seconds(closed_at, now: datetime | None = None) -> float | None:
     return round((reference - closed).total_seconds(), 2)
 
 
+def _ledger_sample(record) -> tuple[int, datetime] | None:
+    """Return ``(sequence, closed_at)`` for a usable ledger record."""
+
+    if not isinstance(record, dict):
+        return None
+    sequence = record.get("sequence")
+    if not isinstance(sequence, int) or isinstance(sequence, bool):
+        return None
+    closed = parse_timestamp(record.get("closed_at") or record.get("closed_time"))
+    if closed is None:
+        return None
+    return sequence, closed
+
+
+def _flag(
+    *,
+    code: str,
+    severity: str,
+    message: str,
+    ledger: int | None,
+    value: float | None,
+    threshold: float | None,
+    previous_ledger: int | None = None,
+) -> dict:
+    return {
+        "code": code,
+        "severity": severity,
+        "message": message,
+        "ledger": ledger,
+        "previous_ledger": previous_ledger,
+        "value": value,
+        "threshold": threshold,
+    }
+
+
+def analyze_ledger_series(
+    ledgers,
+    *,
+    now: datetime | None = None,
+    max_lag_seconds: float = DEFAULT_MAX_LEDGER_LAG,
+    max_close_interval_seconds: float = DEFAULT_MAX_CLOSE_INTERVAL,
+    close_interval_outlier_factor: float = DEFAULT_CLOSE_INTERVAL_FACTOR,
+) -> dict:
+    """Flag ledger lag and close-time outliers in a recent ledger series.
+
+    Records may be supplied in any order; usable samples are sorted by
+    sequence.  A ledger is flagged when the newest close time is older than
+    ``max_lag_seconds``.  The gap between consecutive ledgers is flagged as a
+    stall when it exceeds ``max_close_interval_seconds``, or as a statistical
+    outlier when it exceeds the median gap by at least
+    ``close_interval_outlier_factor``.
+    """
+
+    reference = now or datetime.now(UTC).replace(tzinfo=None)
+    samples = sorted(
+        (sample for sample in (_ledger_sample(record) for record in ledgers or []) if sample),
+        key=lambda sample: sample[0],
+    )
+
+    latest_ledger = samples[-1][0] if samples else None
+    latest_lag = round((reference - samples[-1][1]).total_seconds(), 2) if samples else None
+
+    flags: list[dict] = []
+    if latest_lag is not None and latest_lag > max_lag_seconds:
+        flags.append(
+            _flag(
+                code="ledger_lag",
+                severity="critical",
+                message=(
+                    f"Ledger {latest_ledger} closed {latest_lag:.0f}s ago "
+                    f"(threshold {max_lag_seconds:.0f}s)"
+                ),
+                ledger=latest_ledger,
+                value=latest_lag,
+                threshold=float(max_lag_seconds),
+            )
+        )
+
+    intervals: list[tuple[int, int, float]] = []
+    for (previous_ledger, previous_closed), (ledger, closed) in zip(
+        samples, samples[1:], strict=False
+    ):
+        gap = round((closed - previous_closed).total_seconds(), 2)
+        intervals.append((previous_ledger, ledger, gap))
+        if gap < 0:
+            flags.append(
+                _flag(
+                    code="close_time_out_of_order",
+                    severity="warning",
+                    message=(
+                        f"Ledger {ledger} closed before ledger {previous_ledger} "
+                        f"({abs(gap):.0f}s earlier)"
+                    ),
+                    ledger=ledger,
+                    previous_ledger=previous_ledger,
+                    value=gap,
+                    threshold=0.0,
+                )
+            )
+
+    valid_intervals = [gap for _, _, gap in intervals if gap >= 0]
+    median_interval = round(median(valid_intervals), 2) if valid_intervals else None
+
+    for previous_ledger, ledger, gap in intervals:
+        if gap < 0:
+            continue
+        if gap > max_close_interval_seconds:
+            flags.append(
+                _flag(
+                    code="stalled_ingestion",
+                    severity="critical",
+                    message=(
+                        f"Ledger {previous_ledger} to {ledger} took {gap:.0f}s "
+                        f"(threshold {max_close_interval_seconds:.0f}s)"
+                    ),
+                    ledger=ledger,
+                    previous_ledger=previous_ledger,
+                    value=gap,
+                    threshold=float(max_close_interval_seconds),
+                )
+            )
+        elif median_interval and gap > median_interval * close_interval_outlier_factor:
+            flags.append(
+                _flag(
+                    code="close_interval_outlier",
+                    severity="warning",
+                    message=(
+                        f"Ledger {previous_ledger} to {ledger} took {gap:.0f}s, "
+                        f"{gap / median_interval:.1f}x the median "
+                        f"{median_interval:.1f}s close interval"
+                    ),
+                    ledger=ledger,
+                    previous_ledger=previous_ledger,
+                    value=gap,
+                    threshold=round(median_interval * close_interval_outlier_factor, 2),
+                )
+            )
+
+    if valid_intervals:
+        close_intervals = {
+            "min": round(min(valid_intervals), 2),
+            "max": round(max(valid_intervals), 2),
+            "avg": round(sum(valid_intervals) / len(valid_intervals), 2),
+            "median": median_interval,
+        }
+    else:
+        close_intervals = {"min": None, "max": None, "avg": None, "median": None}
+
+    return {
+        "samples": len(samples),
+        "latest_ledger": latest_ledger,
+        "latest_lag_seconds": latest_lag,
+        "close_intervals": close_intervals,
+        "flags": flags,
+        "anomalous": bool(flags),
+    }
+
+
 def build_network_metrics(
     *,
     network: str,
@@ -58,19 +219,33 @@ def build_network_metrics(
     horizon_ledger: dict | None,
     rpc_health: dict | None,
     rpc_ledger: dict | None = None,
+    recent_ledgers: list[dict] | None = None,
     max_lag_seconds: float = DEFAULT_MAX_LEDGER_LAG,
+    max_close_interval_seconds: float = DEFAULT_MAX_CLOSE_INTERVAL,
+    close_interval_outlier_factor: float = DEFAULT_CLOSE_INTERVAL_FACTOR,
+    now: datetime | None = None,
 ) -> dict:
     """Combine Horizon ledger, Soroban health and Soroban ledger data."""
 
     ledger = horizon_ledger or {}
-    lag = ledger_lag_seconds(ledger.get("closed_at"))
+    lag = ledger_lag_seconds(ledger.get("closed_at") or ledger.get("closed_time"), now=now)
     rpc_status = (rpc_health or {}).get("status")
     rpc_status_text = rpc_status.strip().lower() if isinstance(rpc_status, str) else None
+
+    series = analyze_ledger_series(
+        recent_ledgers if recent_ledgers is not None else ([ledger] if ledger else []),
+        now=now,
+        max_lag_seconds=max_lag_seconds,
+        max_close_interval_seconds=max_close_interval_seconds,
+        close_interval_outlier_factor=close_interval_outlier_factor,
+    )
+    flags = series["flags"]
 
     lag_ok = lag is not None and lag <= max_lag_seconds
     # A missing or unknown status is not evidence of health.
     rpc_ok = rpc_status_text == "healthy"
-    healthy = bool(lag_ok and rpc_ok)
+    critical_flags = any(flag["severity"] == "critical" for flag in flags)
+    healthy = bool(lag_ok and rpc_ok and not critical_flags)
 
     return {
         "network": network,
@@ -83,6 +258,8 @@ def build_network_metrics(
         "rpc_health": rpc_status_text,
         "horizon_url": horizon_url,
         "rpc_url": rpc_url,
+        "ledger_series": series,
+        "flags": flags,
     }
 
 
@@ -98,6 +275,10 @@ def summarise(metrics: dict) -> str:
         lines.append(f"Ledger close lag: {metrics['ledger_lag_seconds']}s.")
     if metrics.get("rpc_health"):
         lines.append(f"Soroban RPC health: {metrics['rpc_health']}.")
+    flags = metrics.get("flags") or []
+    if flags:
+        rendered = "; ".join(flag["message"] for flag in flags)
+        lines.append(f"Anomalies: {rendered}.")
     return " ".join(lines)
 
 

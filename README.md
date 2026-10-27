@@ -86,9 +86,9 @@ const status = await client.networkStatus("testnet");
 | --- | --- | --- | --- |
 | `GET` | `/health` | no | Liveness probe. |
 | `GET` | `/ready` | no | Readiness probe (checks Horizon + RPC). |
-| `GET` | `/api/v1/network/status?network=testnet` | yes | Latest ledger / node health. |
+| `GET` | `/api/v1/network/status?network=testnet` | yes | Latest ledger / node health and ledger-series anomalies. |
 | `GET` | `/api/v1/contracts/{contract_id}/events?start_ledger=...&limit=...` | yes | Decode and summarise Soroban contract events. |
-| `POST` | `/api/v1/analyze` | yes | Recompute metrics and return a grounded summary. |
+| `POST` | `/api/v1/analyze` | yes | Recompute metrics, flags and a grounded summary. |
 | `POST` | `/api/v1/chat` | yes | Natural-language query through an agent. |
 
 Every response carries an `X-Request-ID`; errors use a consistent envelope
@@ -110,12 +110,31 @@ network-only chat requests are unchanged.
 Verified against the testnet escrow `CBBWLHEI3HUBZOVHCKSYGARLRGZYQ4VZCHYBYAIQN2A727J3COI7LMOQ`:
 the decoder read `created`, `funded` and `released` events with zero decode failures.
 
+### Ledger anomaly detection
+
+`POST /api/v1/analyze` fetches the most recent ledgers from Horizon and returns
+deterministic `flags` alongside the summary. Flags are also included in
+`GET /api/v1/network/status` under `flags` and `ledger_series`:
+
+- `ledger_lag`: the newest ledger closed longer ago than
+  `STELLAR_AI_MAX_LEDGER_LAG_SECONDS` (critical).
+- `stalled_ingestion`: the gap between two recent ledgers exceeded
+  `STELLAR_AI_MAX_CLOSE_INTERVAL_SECONDS` (critical).
+- `close_interval_outlier`: a gap exceeded the median close interval by
+  `STELLAR_AI_CLOSE_INTERVAL_OUTLIER_FACTOR` (warning).
+- `close_time_out_of_order`: a later ledger reported an earlier close time
+  (warning).
+
+`STELLAR_AI_LEDGER_HISTORY_LIMIT` controls how many recent ledgers are sampled
+(1-200, default `20`).
+
 ## Configuration
 
 Settings are environment variables with the `STELLAR_AI_` prefix (see
 [`.env.example`](.env.example)): network, LLM provider + credentials,
 `STELLAR_AI_API_KEYS` (bearer keys; empty disables auth),
-`STELLAR_AI_CORS_ORIGINS`, and `STELLAR_AI_LOG_FORMAT` (`text` or `json`).
+`STELLAR_AI_CORS_ORIGINS`, `STELLAR_AI_LOG_FORMAT` (`text` or `json`), and the
+ledger anomaly thresholds listed above.
 
 ### Using a real model
 
